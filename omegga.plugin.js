@@ -166,7 +166,9 @@ module.exports = class Teleports {
                                 // teleport the player
 
                                 // account for potential latency
-                                finalTpPos = finalTpPos.add(diffPos.scale(1000 / deltaCheckTime).scale((ASSUMED_LATENCY) / 1000));
+                                let compensation = diffPos.scale(1000 / deltaCheckTime).scale(ASSUMED_LATENCY / 1000);
+                                compensation = compensation.normalize().scale(Math.min(compensation.magnitude(), 10)); // compensate no farther than 10 units
+                                finalTpPos = finalTpPos.add(compensation);
 
                                 this.teleportPlayer(pp.player.name, finalTpPos.toArray());
                                 pData.awaitingTeleport[tp.name] = i;
