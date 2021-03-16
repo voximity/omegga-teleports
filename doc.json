@@ -48,7 +48,7 @@
             "name": "/tps remove",
             "description": "Remove a teleporter. Teleporters can be removed if you are standing in one of their zones, or if you pass a teleporter name.",
             "example": "/tps remove my_teleporter",
-            "args": [{"name": "teleporteer", "description": "Name of the teleporter to remove. Don't specify to base on zone location.", "required": false}]
+            "args": [{"name": "teleporter", "description": "Name of the teleporter to remove. Don't specify to base on zone location.", "required": false}]
         },
         {
             "name": "/tps ignore",
