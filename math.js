@@ -64,7 +64,7 @@ class Vector3 {
     }
 
     dimensionsLessThan(other) {
-        return this.x < other.x && this.y < other.y && this.z < other.z;
+        return this.x <= other.x && this.y <= other.y && this.z <= other.z;
     }
 
     in(center, size) {

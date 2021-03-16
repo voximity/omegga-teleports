@@ -1,10 +1,10 @@
 const {Vector3, Ray, rayIntersectsPrism} = require("./math.js");
 const {red, yellow, green, cyan, blue, magenta, white, gray} = require("./colors");
 
-const ASSUMED_LATENCY = 50;
+const ASSUMED_LATENCY = 40;
 
 let playerSize = new Vector3(12.5, 12.5, 24);
-playerSize = playerSize.subtract(new Vector3(1, 1, 3)); // a little extra leeway (mostly for flying)
+playerSize = playerSize.subtract(new Vector3(0, 0, 3)); // a little extra leeway (mostly for flying)
 
 module.exports = class Teleports {
     constructor(omegga, config, store) {
@@ -20,16 +20,17 @@ module.exports = class Teleports {
 
     getOrCreatePlayerData(pid) {
         if (this.playerData[pid] == null) {
-            this.playerData[pid] = {last: null, awaitingTeleport: {}, ignore: false, cooldown: false};
+            this.playerData[pid] = {last: null, awaitingTeleport: {}, ignore: false, cooldown: false, lastTime: Date.now()};
         }
         return this.playerData[pid];
     }
 
     getAndUpdateLastPosition(pp) {
         const last = this.getOrCreatePlayerData(pp.player.name).last;
+        const lastTime = this.getOrCreatePlayerData(pp.player.name).lastTime;
         this.playerData[pp.player.name].last = pp.pos;
         this.playerData[pp.player.name].lastTime = Date.now();
-        return last;
+        return [last, lastTime];
     }
 
     async teleportCheck() {
@@ -37,24 +38,22 @@ module.exports = class Teleports {
             const timeBeforeCheck = Date.now();
             const playerPositions = await this.omegga.getAllPlayerPositions();
             const timeAfterCheck = Date.now();
-            const lastTime = this.lastCheckTime;
-            this.lastCheckTime = timeAfterCheck;
             const deltaAwaitTime = timeAfterCheck - timeBeforeCheck;
-            const deltaCheckTime = lastTime - timeAfterCheck;
 
             playerPositions.forEach((pp) => {
                 // for each player...
-                const lastPosition = this.getAndUpdateLastPosition(pp);
+                const [lastPosition, lastTime] = this.getAndUpdateLastPosition(pp);
                 if (lastPosition == null) return;
 
                 const pData = this.getOrCreatePlayerData(pp.player.name);
                 if (pData.ignore) return;
+                const deltaCheckTime = Date.now() - lastTime;
 
                 const newPos = new Vector3(...pp.pos);
                 const oldPos = new Vector3(...lastPosition);
                 const diffPos = newPos.subtract(oldPos);
                 
-                const ray = new Ray(newPos, diffPos);
+                const ray = new Ray(oldPos, diffPos);
 
                 this.tps.forEach((tp) => {
                     // check tps
@@ -103,11 +102,12 @@ module.exports = class Teleports {
 
                             const safeAndFitsInOrTrue = tp.safe ? playerSize.dimensionsLessThan(size) : true;
 
-                            if (safeAndFitsInOrTrue && newPosDiff.x <= size.x && newPosDiff.y <= size.y && newPosDiff.z <= size.z) {
+                            if (safeAndFitsInOrTrue && newPosDiff.dimensionsLessThan(size)) {
                                 inZone = true;
-                                if (newPosDiff.dimensionsLessThan(reducedSize) && tp.safe) inZoneToTp = true;
-                                else if (!tp.safe) inZoneToTp = true;
-                            } else {
+                                //if (tp.safe && newPosDiff.dimensionsLessThan(reducedSize)) inZoneToTp = true;
+                                /*else */if (!tp.safe) inZoneToTp = true;
+                            } 
+                            {
                                 const intersectionNormal = rayIntersectsPrism(ray, center, size, diffPos.magnitude());
                                 if (intersectionNormal != null) {
                                     inZone = true;
@@ -122,15 +122,13 @@ module.exports = class Teleports {
                                             const nextCenter = new Vector3(...tp.positions[1 - i]);
     
                                             // use opposite signs (negative normal is player direction)
-                                            if (intersectionNormalInner.x ==  1) finalTpPos = new Vector3(Math.min(finalTpPos.x, nextCenter.x - playerSize.x / 2), finalTpPos.y, finalTpPos.z);
-                                            if (intersectionNormalInner.y ==  1) finalTpPos = new Vector3(finalTpPos.x, Math.min(finalTpPos.y, nextCenter.y - playerSize.y / 2), finalTpPos.z);
-                                            if (intersectionNormalInner.z ==  1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.min(finalTpPos.z, nextCenter.z - playerSize.z / 2));
+                                            if (intersectionNormalInner.x == -1) finalTpPos = new Vector3(Math.min(finalTpPos.x, nextCenter.x - playerSize.x / 2), finalTpPos.y, finalTpPos.z);
+                                            if (intersectionNormalInner.y == -1) finalTpPos = new Vector3(finalTpPos.x, Math.min(finalTpPos.y, nextCenter.y - playerSize.y / 2), finalTpPos.z);
+                                            if (intersectionNormalInner.z == -1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.min(finalTpPos.z, nextCenter.z - playerSize.z / 2));
     
-                                            if (intersectionNormalInner.x == -1) finalTpPos = new Vector3(Math.max(finalTpPos.x, nextCenter.x + playerSize.x / 2), finalTpPos.y, finalTpPos.z);
-                                            if (intersectionNormalInner.y == -1) finalTpPos = new Vector3(finalTpPos.x, Math.max(finalTpPos.y, nextCenter.y + playerSize.y / 2), finalTpPos.z);
-                                            if (intersectionNormalInner.z == -1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.max(finalTpPos.z, nextCenter.z + playerSize.z / 2));
-    
-                                            inZoneToTp = true;
+                                            if (intersectionNormalInner.x ==  1) finalTpPos = new Vector3(Math.max(finalTpPos.x, nextCenter.x + playerSize.x / 2), finalTpPos.y, finalTpPos.z);
+                                            if (intersectionNormalInner.y ==  1) finalTpPos = new Vector3(finalTpPos.x, Math.max(finalTpPos.y, nextCenter.y + playerSize.y / 2), finalTpPos.z);
+                                            if (intersectionNormalInner.z ==  1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.max(finalTpPos.z, nextCenter.z + playerSize.z / 2));
                                         } else if (!playerFitsInFullZone && intersectionNormal != null && !oldPos.in(center, size)) {
                                             inZoneToTp = true;
                                             finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center).multiply(scaledRelativeSize));
@@ -138,15 +136,13 @@ module.exports = class Teleports {
                                             const nextCenter = new Vector3(...tp.positions[1 - i]);
     
                                             // use opposite signs (negative normal is player direction)
-                                            if (intersectionNormal.x ==  1) finalTpPos = new Vector3(Math.min(finalTpPos.x, nextCenter.x - playerSize.x / 2), finalTpPos.y, finalTpPos.z);
-                                            if (intersectionNormal.y ==  1) finalTpPos = new Vector3(finalTpPos.x, Math.min(finalTpPos.y, nextCenter.y - playerSize.y / 2), finalTpPos.z);
-                                            if (intersectionNormal.z ==  1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.min(finalTpPos.z, nextCenter.z - playerSize.z / 2));
+                                            if (intersectionNormal.x == -1) finalTpPos = new Vector3(Math.min(finalTpPos.x, nextCenter.x - playerSize.x / 2), finalTpPos.y, finalTpPos.z);
+                                            if (intersectionNormal.y == -1) finalTpPos = new Vector3(finalTpPos.x, Math.min(finalTpPos.y, nextCenter.y - playerSize.y / 2), finalTpPos.z);
+                                            if (intersectionNormal.z == -1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.min(finalTpPos.z, nextCenter.z - playerSize.z / 2));
     
-                                            if (intersectionNormal.x == -1) finalTpPos = new Vector3(Math.max(finalTpPos.x, nextCenter.x + playerSize.x / 2), finalTpPos.y, finalTpPos.z);
-                                            if (intersectionNormal.y == -1) finalTpPos = new Vector3(finalTpPos.x, Math.max(finalTpPos.y, nextCenter.y + playerSize.y / 2), finalTpPos.z);
-                                            if (intersectionNormal.z == -1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.max(finalTpPos.z, nextCenter.z + playerSize.z / 2));
-    
-                                            inZoneToTp = true;
+                                            if (intersectionNormal.x ==  1) finalTpPos = new Vector3(Math.max(finalTpPos.x, nextCenter.x + playerSize.x / 2), finalTpPos.y, finalTpPos.z);
+                                            if (intersectionNormal.y ==  1) finalTpPos = new Vector3(finalTpPos.x, Math.max(finalTpPos.y, nextCenter.y + playerSize.y / 2), finalTpPos.z);
+                                            if (intersectionNormal.z ==  1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.max(finalTpPos.z, nextCenter.z + playerSize.z / 2));
                                         }
                                     } else {
                                         inZoneToTp = true;
@@ -166,11 +162,11 @@ module.exports = class Teleports {
                             // check if we are awaiting teleport on OPPOSITE teleporter
                             if (pData.awaitingTeleport[tp.name] == 1 - i) {
                                 pData.awaitingTeleport[tp.name] = i;
-                            } else if (pData.awaitingTeleport[tp.name] == null && canTp && Date.now() - pData.cooldown > 1000 / this.config["poll-rate"] && inZoneToTp) {
+                            } else if (pData.awaitingTeleport[tp.name] == null && canTp && Date.now() - pData.cooldown > 120 && inZoneToTp) {
                                 // teleport the player
 
                                 // account for potential latency
-                                finalTpPos = finalTpPos.add(diffPos.scale(1000 / deltaCheckTime).scale((deltaAwaitTime + ASSUMED_LATENCY) / 1000));
+                                finalTpPos = finalTpPos.add(diffPos.scale(1000 / deltaCheckTime).scale((ASSUMED_LATENCY) / 1000));
 
                                 this.teleportPlayer(pp.player.name, finalTpPos.toArray());
                                 pData.awaitingTeleport[tp.name] = i;
@@ -178,12 +174,12 @@ module.exports = class Teleports {
                         }
                     }
 
-                    if (!inTeleport[0] && !inTeleport[1] && pData.awaitingTeleport[tp.name] != null && Date.now() - pData.cooldown > 1000 / this.config["poll-rate"]) {
+                    if (!inTeleport[0] && !inTeleport[1] && pData.awaitingTeleport[tp.name] != null && Date.now() - pData.cooldown > 120) {
                         // we are not in any teleports
                         delete pData.awaitingTeleport[tp.name];
                         pData.cooldown = null;
                     } else {
-                        if (inTeleport[0] || inTeleport[1])
+                        if ((inTeleport[0] || inTeleport[1]) && pData.awaitingTeleport[tp.name] != null)
                             pData.cooldown = Date.now();
                     }
                 });
@@ -220,6 +216,7 @@ module.exports = class Teleports {
         const tp = this.tps[i];
         const tpslist = await this.store.get("tps");
         tpslist.splice(tpslist.indexOf(tp.name), 1);
+        await this.store.delete(`tp_${tp.name}`);
         await this.store.set("tps", tpslist);
         this.tps.splice(i, 1);
     }
@@ -279,6 +276,10 @@ module.exports = class Teleports {
             tpslist.forEach(async (tpName) => {
                 const tp = await this.store.get(`tp_${tpName}`);
                 this.tps.push(tp);
+            });
+
+            this.omegga.on("leave", async (user) => {
+                delete this.playerData[user.name];
             });
 
             this.omegga.on("chat", async (user, message) => {
