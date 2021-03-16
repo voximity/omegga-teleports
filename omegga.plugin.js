@@ -54,6 +54,9 @@ module.exports = class Teleports {
 
                         const center = new Vector3(...tp.positions[i]);
 
+                        let scaledRelativeSize = new Vector3(tp.sizes[i][0] / tp.sizes[1 - i][0], tp.sizes[i][1] / tp.sizes[1 - i][1], tp.sizes[i][2] / tp.sizes[1 - i][2]);
+                        if (!tp.safe) scaledRelativeSize = new Vector3(1, 1, 1);
+
                         let inZone = false;
                         let inZoneToTp = false;
                         let finalTpPos;
@@ -105,7 +108,7 @@ module.exports = class Teleports {
                                         inZoneToTp = true;
                                     } else if (tp.safe && !playerFitsInFullZone && intersectionNormal != null && !oldPos.in(center, size)) {
                                         inZoneToTp = true;
-                                        finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center));
+                                        finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center).multiply(scaledSize));
 
                                         const nextCenter = new Vector3(...tp.positions[1 - i]);
 
@@ -126,7 +129,7 @@ module.exports = class Teleports {
                             }
 
                             if (inZone && finalTpPos == null) {
-                                finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center));
+                                finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center).multiply(scaledSize));
                             }
                         }
 
