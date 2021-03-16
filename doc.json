@@ -1,0 +1,18 @@
+{
+    "name": "Teleports",
+    "author": "x",
+    "description": "Define teleport zones that will teleport players seamlessly.",
+    "config": {
+        "poll-rate": {
+            "description": "How often, in Hz, to check player positions and teleport.",
+            "type": "number",
+            "default": 10
+        },
+        "authorized": {
+            "description": "A list of users allowed to create/delete/modify teleporters.",
+            "type": "players",
+            "default": []
+        }
+    },
+    "commands": []
+}
