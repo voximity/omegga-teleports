@@ -108,7 +108,7 @@ module.exports = class Teleports {
                                         inZoneToTp = true;
                                     } else if (tp.safe && !playerFitsInFullZone && intersectionNormal != null && !oldPos.in(center, size)) {
                                         inZoneToTp = true;
-                                        finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center).multiply(scaledSize));
+                                        finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center).multiply(scaledRelativeSize));
 
                                         const nextCenter = new Vector3(...tp.positions[1 - i]);
 
@@ -129,7 +129,7 @@ module.exports = class Teleports {
                             }
 
                             if (inZone && finalTpPos == null) {
-                                finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center).multiply(scaledSize));
+                                finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center).multiply(scaledRelativeSize));
                             }
                         }
 
