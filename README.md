@@ -19,5 +19,7 @@ This plugin is (sort of) a WIP. It is in a stable state, but there will likely b
 ## Credits
 
 voximity - creator, maintainer
+
 cake - Omegga
+
 Kaje - original plugin idea

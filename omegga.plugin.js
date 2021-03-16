@@ -1,5 +1,7 @@
-const {Vector3, Ray} = require("./math.js");
+const {Vector3, Ray, rayIntersectsPrism} = require("./math.js");
 const {red, yellow, green, cyan, blue, magenta, white, gray} = require("./colors");
+
+const playerSize = new Vector3(12.5, 12.5, 24);
 
 module.exports = class Teleports {
     constructor(omegga, config, store) {
@@ -52,19 +54,29 @@ module.exports = class Teleports {
                         const center = new Vector3(...tp.positions[i]);
 
                         let inZone = false;
+                        let inZoneToTp = false;
                         let finalTpPos;
                         if (tp.shape == "sphere") {
+                            const newToCenterMagnitude = newPos.subtract(center).magnitude();
                             if (newPos.subtract(center).magnitude() <= tp.radius) {
                                 inZone = true;
+                                
+                                const reducedRadius = radius - newPos.subtract(center).normalize().multiply(playerSize).magnitude();
+                                if (tp.safe && reducedRadius > 0 && newToCenterMagnitude <= reducedRadius) inZoneToTp = true;
+                                else if (!tp.safe || reducedRadius < 0) inZoneToTp = true;
                             } else {
                                 const closestPoint = ray.closestPoint(center);
                                 const pointDistToNew = newPos.subtract(closestPoint);
                                 const pointDistToNewMagnitude = pointDistToNew.magnitude();
                                 const pointDistToSphere = closestPoint.subtract(center).magnitude();
 
+                                const reducedRadius = radius - closestPoint.subtract(center).normalize().multiply(playerSize).magnitude();
+
                                 // ensure closest point is within actual range of new - old AND closest point is in sphere
                                 if (pointDistToNewMagnitude <= diffPos.magnitude() && pointDistToSphere <= tp.radius) {
                                     inZone = true;
+                                    if (tp.safe && reducedRadius > 0 && pointDistToSphere <= reducedRadius) inZoneToTp = true;
+                                    else if (!tp.safe || reducedRadius < 0) inZoneToTp = true;
                                 }
                             }
 
@@ -72,19 +84,21 @@ module.exports = class Teleports {
                                 finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center));
                         } else if (tp.shape == "prism") {
                             const newPosDiff = newPos.subtract(center).abs();
-                            const size = new Vector3(...tp.sizes[i]);
+                            let size = new Vector3(...tp.sizes[i]);
+                            let reducedSize = size.subtract(playerSize);
+
                             if (newPosDiff.x <= size.x && newPosDiff.y <= size.y && newPosDiff.z <= size.z) {
                                 inZone = true;
+                                if (newPosDiff.dimensionsLessThan(reducedSize) && tp.safe) inZoneToTp = true;
+                                else if (!tp.safe) inZoneToTp = true;
                             } else {
-                                // stolen from my raytracer lol
-                                const ro = newPos.subtract(center);
-                                const s = new Vector3(ray.direction.x < 0 ? 1 : -1, ray.direction.y < 0 ? 1 : -1, ray.direction.z < 0 ? 1 : -1);
-                                const t1 = ray.m.multiply(ro.negate().add(s.multiply(size)));
-                                const t2 = ray.m.multiply(ro.negate().subtract(s.multiply(size)));
-                                const tn = Math.max(Math.max(t1.x, t1.y), t1.z);
-                                const tf = Math.min(Math.min(t2.x, t2.y), t2.z);
-                                if (tn < tf && tf > 0 && tn <= diffPos.magnitude()) {
+                                if (rayIntersectsPrism(ray, center, size, diffPos.magnitude())) {
                                     inZone = true;
+                                    if (tp.safe && playerSize.dimensionsLessThan(size) && rayIntersectsPrism(ray, center, reducedSize, diffPos.magnitude())) {
+                                        inZoneToTp = true;
+                                    } else if (!tp.safe || !playerSize.dimensionsLessThan(size)) {
+                                        inZoneToTp = true;
+                                    }
                                 }
                             }
 
@@ -99,7 +113,7 @@ module.exports = class Teleports {
                             // check if we are awaiting teleport on OPPOSITE teleporter
                             if (pData.awaitingTeleport[tp.name] == 1 - i) {
                                 pData.awaitingTeleport[tp.name] = i;
-                            } else if (pData.awaitingTeleport[tp.name] == null && canTp && Date.now() - pData.cooldown > 200) {
+                            } else if (pData.awaitingTeleport[tp.name] == null && canTp && Date.now() - pData.cooldown > 2000 / this.config["poll-rate"] && inZoneToTp) {
                                 // teleport the player
                                 this.teleportPlayer(pp.player.name, finalTpPos.toArray());
                                 pData.awaitingTeleport[tp.name] = i;
@@ -108,7 +122,7 @@ module.exports = class Teleports {
                         }
                     }
 
-                    if (!inTeleport.some(p => p) && pData.awaitingTeleport[tp.name] != null && Date.now() - pData.cooldown > 200) {
+                    if (!inTeleport.some(p => p) && pData.awaitingTeleport[tp.name] != null && Date.now() - pData.cooldown > 2000 / this.config["poll-rate"]) {
                         // we are not in any teleports
                         delete pData.awaitingTeleport[tp.name];
                         pData.cooldown = null;
@@ -199,12 +213,17 @@ module.exports = class Teleports {
                         this.omegga.whisper(user, gray("- ") + `<code>/tps ${sub[0]}</>: ${sub[1]}`);
                     });
                 } else if (subcommand == "list") {
+                    if (!authed) return;
+
                     // list existing tps
                     this.omegga.whisper(user, yellow("<b>List of Teleporters</>"));
 
                     this.tps.forEach((tp) => {
-                        this.omegga.whisper(user, cyan(tp.name) + `: ${tp.shape}, ${tp.oneWay ? "one-way" : "both ways"}`)
+                        this.omegga.whisper(user, yellow(`<b>${tp.name}</>`) + `: ${tp.shape}, ${tp.oneWay ? red("one-way") : cyan("both ways")}, ${tp.safe ? green("safe") + " teleporting" : cyan("normal") + " teleporting"}`);
                     });
+
+                    if (this.tps.length == 0)
+                        this.omegga.whisper(user, red("No teleporters have been created. Create one with <code>/tps create</>."));
                 } else if (subcommand == "ignore") {
                     if (!authed) return;
                     const pData = this.getOrCreatePlayerData(user);
@@ -212,6 +231,8 @@ module.exports = class Teleports {
 
                     this.omegga.whisper(user, `<color="ff0">You will ${pData.ignore ? "no longer" : "now"} interact with teleports. Run the command again to toggle.</>`);
                 } else if (subcommand == "create" || subcommand == "new") {
+                    if (!authed) return;
+
                     // create a new tp
                     if (this.playerPromises[user] != null)
                         return this.omegga.whisper(user, red("Plugin is pending response from you already."));
@@ -262,6 +283,23 @@ module.exports = class Teleports {
                         }
                     }
 
+                    this.omegga.whisper(user, yellow("Will this teleporter use safe teleporting? Respond with <code>yes</> or <code>no</>."));
+                    this.omegga.whisper(user, white("Safe teleporting ensures that the <i>entire</> player is within a teleport zone before teleporting. This prevents getting stuck in floors, walls, etc. after teleporting."));
+                    this.omegga.whisper(user, white("Normal (unsafe) teleporting will teleport the player as soon as the player's center moves into zone."));
+                    let safe;
+                    while (true) {
+                        const safeSpecified = await this.getPlayerChatMessage(user);
+                        if (safeSpecified.startsWith("y")) {
+                            safe = true;
+                            break;
+                        } else if (safeSpecified.startsWith("n")) {
+                            safe = false;
+                            break;
+                        } else {
+                            this.omegga.whisper(user, red("Please choose <code>yes</> or <code>no</>. Is the teleporter safe?"));
+                        }
+                    }
+
                     // depending on shape, get positions/sizes of entry/exit
                     if (shape == "sphere") {
                         this.omegga.whisper(user, yellow("Move to the first point you'd like to set the teleporter. When you are in position, chat <code>here</>."));
@@ -304,7 +342,7 @@ module.exports = class Teleports {
                             }
                         }
 
-                        this.addTp({name, shape, positions: [pointA, pointB], radius, oneWay});
+                        this.addTp({name, shape, positions: [pointA, pointB], radius, oneWay, safe});
                         this.omegga.whisper(user, cyan(`The teleporter ${name} has been created!`));
                     } else if (shape == "prism") {
                         this.omegga.whisper(user, yellow("Select and copy some bricks using the selector to define the first teleport zone. When you are done, chat <code>done</>."));
@@ -347,7 +385,7 @@ module.exports = class Teleports {
                         const sizeA = [zoneABounds.maxBound[0] - zoneABounds.center[0], zoneABounds.maxBound[1] - zoneABounds.center[1], zoneABounds.maxBound[2] - zoneABounds.center[2]];
                         const sizeB = [zoneBBounds.maxBound[0] - zoneBBounds.center[0], zoneBBounds.maxBound[1] - zoneBBounds.center[1], zoneBBounds.maxBound[2] - zoneBBounds.center[2]];
 
-                        const tp = {name, shape, positions, sizes: [sizeA, sizeB], oneWay};
+                        const tp = {name, shape, positions, sizes: [sizeA, sizeB], oneWay, safe};
                         console.log(JSON.stringify(tp));
                         this.addTp(tp);
                         this.omegga.whisper(user, cyan(`The teleporter ${name} has been created!`));

@@ -62,6 +62,10 @@ class Vector3 {
     abs() {
         return new Vector3(Math.abs(this.x), Math.abs(this.y), Math.abs(this.z));
     }
+
+    dimensionsLessThan(other) {
+        return this.x < other.x && this.y < other.y && this.z < other.z;
+    }
 }
 
 class Ray {
@@ -83,4 +87,16 @@ class Ray {
     }
 }
 
-module.exports = {Vector3, Ray};
+module.exports = {
+    Vector3,
+    Ray,
+    rayIntersectsPrism: function(ray, center, size, maxRayLength) {
+        const ro = ray.origin.subtract(center);
+        const s = new Vector3(ray.direction.x < 0 ? 1 : -1, ray.direction.y < 0 ? 1 : -1, ray.direction.z < 0 ? 1 : -1);
+        const t1 = ray.m.multiply(ro.negate().add(s.multiply(size)));
+        const t2 = ray.m.multiply(ro.negate().subtract(s.multiply(size)));
+        const tn = Math.max(Math.max(t1.x, t1.y), t1.z);
+        const tf = Math.min(Math.min(t2.x, t2.y), t2.z);
+        return tn < tf && tf > 0 && tn <= maxRayLength;
+    }
+};
