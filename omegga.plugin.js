@@ -1,6 +1,8 @@
 const {Vector3, Ray, rayIntersectsPrism} = require("./math.js");
 const {red, yellow, green, cyan, blue, magenta, white, gray} = require("./colors");
 
+const ASSUMED_LATENCY = 50;
+
 let playerSize = new Vector3(12.5, 12.5, 24);
 playerSize = playerSize.subtract(new Vector3(1, 1, 3)); // a little extra leeway (mostly for flying)
 
@@ -9,6 +11,7 @@ module.exports = class Teleports {
         this.omegga = omegga;
         this.config = config;
         this.store = store;
+        this.lastCheckTime = 0;
     }
 
     teleportPlayer(player, pos) {
@@ -25,12 +28,19 @@ module.exports = class Teleports {
     getAndUpdateLastPosition(pp) {
         const last = this.getOrCreatePlayerData(pp.player.name).last;
         this.playerData[pp.player.name].last = pp.pos;
+        this.playerData[pp.player.name].lastTime = Date.now();
         return last;
     }
 
     async teleportCheck() {
         try {
+            const timeBeforeCheck = Date.now();
             const playerPositions = await this.omegga.getAllPlayerPositions();
+            const timeAfterCheck = Date.now();
+            const lastTime = this.lastCheckTime;
+            this.lastCheckTime = timeAfterCheck;
+            const deltaAwaitTime = timeAfterCheck - timeBeforeCheck;
+            const deltaCheckTime = lastTime - timeAfterCheck;
 
             playerPositions.forEach((pp) => {
                 // for each player...
@@ -104,25 +114,41 @@ module.exports = class Teleports {
                                     const intersectionNormalInner = rayIntersectsPrism(ray, center, reducedSize, diffPos.magnitude());
                                     const playerFitsInFullZone = playerSize.dimensionsLessThan(size);
 
-                                    if (tp.safe && playerFitsInFullZone && intersectionNormalInner != null) {
-                                        inZoneToTp = true;
-                                    } else if (tp.safe && !playerFitsInFullZone && intersectionNormal != null && !oldPos.in(center, size)) {
-                                        inZoneToTp = true;
-                                        finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center).multiply(scaledRelativeSize));
-
-                                        const nextCenter = new Vector3(...tp.positions[1 - i]);
-
-                                        // use opposite signs (negative normal is player direction)
-                                        if (intersectionNormal.x ==  1) finalTpPos = new Vector3(Math.min(finalTpPos.x, nextCenter.x - playerSize.x / 2), finalTpPos.y, finalTpPos.z);
-                                        if (intersectionNormal.y ==  1) finalTpPos = new Vector3(finalTpPos.x, Math.min(finalTpPos.y, nextCenter.y - playerSize.y / 2), finalTpPos.z);
-                                        if (intersectionNormal.z ==  1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.min(finalTpPos.z, nextCenter.z - playerSize.z / 2));
-
-                                        if (intersectionNormal.x == -1) finalTpPos = new Vector3(Math.max(finalTpPos.x, nextCenter.x + playerSize.x / 2), finalTpPos.y, finalTpPos.z);
-                                        if (intersectionNormal.y == -1) finalTpPos = new Vector3(finalTpPos.x, Math.max(finalTpPos.y, nextCenter.y + playerSize.y / 2), finalTpPos.z);
-                                        if (intersectionNormal.z == -1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.max(finalTpPos.z, nextCenter.z + playerSize.z / 2));
-
-                                        inZoneToTp = true;
-                                    } else if (!tp.safe) {
+                                    if (tp.safe) {
+                                        if (playerFitsInFullZone && intersectionNormalInner != null) {
+                                            inZoneToTp = true;
+                                            finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center).multiply(scaledRelativeSize));
+    
+                                            const nextCenter = new Vector3(...tp.positions[1 - i]);
+    
+                                            // use opposite signs (negative normal is player direction)
+                                            if (intersectionNormalInner.x ==  1) finalTpPos = new Vector3(Math.min(finalTpPos.x, nextCenter.x - playerSize.x / 2), finalTpPos.y, finalTpPos.z);
+                                            if (intersectionNormalInner.y ==  1) finalTpPos = new Vector3(finalTpPos.x, Math.min(finalTpPos.y, nextCenter.y - playerSize.y / 2), finalTpPos.z);
+                                            if (intersectionNormalInner.z ==  1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.min(finalTpPos.z, nextCenter.z - playerSize.z / 2));
+    
+                                            if (intersectionNormalInner.x == -1) finalTpPos = new Vector3(Math.max(finalTpPos.x, nextCenter.x + playerSize.x / 2), finalTpPos.y, finalTpPos.z);
+                                            if (intersectionNormalInner.y == -1) finalTpPos = new Vector3(finalTpPos.x, Math.max(finalTpPos.y, nextCenter.y + playerSize.y / 2), finalTpPos.z);
+                                            if (intersectionNormalInner.z == -1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.max(finalTpPos.z, nextCenter.z + playerSize.z / 2));
+    
+                                            inZoneToTp = true;
+                                        } else if (!playerFitsInFullZone && intersectionNormal != null && !oldPos.in(center, size)) {
+                                            inZoneToTp = true;
+                                            finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center).multiply(scaledRelativeSize));
+    
+                                            const nextCenter = new Vector3(...tp.positions[1 - i]);
+    
+                                            // use opposite signs (negative normal is player direction)
+                                            if (intersectionNormal.x ==  1) finalTpPos = new Vector3(Math.min(finalTpPos.x, nextCenter.x - playerSize.x / 2), finalTpPos.y, finalTpPos.z);
+                                            if (intersectionNormal.y ==  1) finalTpPos = new Vector3(finalTpPos.x, Math.min(finalTpPos.y, nextCenter.y - playerSize.y / 2), finalTpPos.z);
+                                            if (intersectionNormal.z ==  1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.min(finalTpPos.z, nextCenter.z - playerSize.z / 2));
+    
+                                            if (intersectionNormal.x == -1) finalTpPos = new Vector3(Math.max(finalTpPos.x, nextCenter.x + playerSize.x / 2), finalTpPos.y, finalTpPos.z);
+                                            if (intersectionNormal.y == -1) finalTpPos = new Vector3(finalTpPos.x, Math.max(finalTpPos.y, nextCenter.y + playerSize.y / 2), finalTpPos.z);
+                                            if (intersectionNormal.z == -1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.max(finalTpPos.z, nextCenter.z + playerSize.z / 2));
+    
+                                            inZoneToTp = true;
+                                        }
+                                    } else {
                                         inZoneToTp = true;
                                     }
                                 }
@@ -140,19 +166,25 @@ module.exports = class Teleports {
                             // check if we are awaiting teleport on OPPOSITE teleporter
                             if (pData.awaitingTeleport[tp.name] == 1 - i) {
                                 pData.awaitingTeleport[tp.name] = i;
-                            } else if (pData.awaitingTeleport[tp.name] == null && canTp && Date.now() - pData.cooldown > 2000 / this.config["poll-rate"] && inZoneToTp) {
+                            } else if (pData.awaitingTeleport[tp.name] == null && canTp && Date.now() - pData.cooldown > 1000 / this.config["poll-rate"] && inZoneToTp) {
                                 // teleport the player
+
+                                // account for potential latency
+                                finalTpPos = finalTpPos.add(diffPos.scale(1000 / deltaCheckTime).scale((deltaAwaitTime + ASSUMED_LATENCY) / 1000));
+
                                 this.teleportPlayer(pp.player.name, finalTpPos.toArray());
                                 pData.awaitingTeleport[tp.name] = i;
-                                pData.cooldown = Date.now();
                             }
                         }
                     }
 
-                    if (!inTeleport.some(p => p) && pData.awaitingTeleport[tp.name] != null && Date.now() - pData.cooldown > 2000 / this.config["poll-rate"]) {
+                    if (!inTeleport[0] && !inTeleport[1] && pData.awaitingTeleport[tp.name] != null && Date.now() - pData.cooldown > 1000 / this.config["poll-rate"]) {
                         // we are not in any teleports
                         delete pData.awaitingTeleport[tp.name];
                         pData.cooldown = null;
+                    } else {
+                        if (inTeleport[0] || inTeleport[1])
+                            pData.cooldown = Date.now();
                     }
                 });
             });
@@ -286,8 +318,6 @@ module.exports = class Teleports {
                     // by default, show the user's own TPs unless they pass `all` or another name
                     const joined = args.join(" ");
                     if (args.length > 0) {
-                        if (!authed) return;
-
                         if (joined == "all") {
                             this.omegga.whisper(user, yellow("<b>List of all teleporters</b>"));
                             writeTeleportList(this.tps);
@@ -481,7 +511,6 @@ module.exports = class Teleports {
                         this.tps.forEach((tp) => {
                             if (tp.name.toLowerCase() == passedName.toLowerCase()) {
                                 foundTp = tp;
-                                return;
                             }
                         });
 
@@ -548,6 +577,7 @@ module.exports = class Teleports {
                         const nearest = sortedTps[0];
                         const dist = Math.round(getTpDistance(nearest) * 10) / 100;
                         this.omegga.whisper(user, "Nearest teleporter: " + yellow(nearest.name) + " by " + cyan(nearest.owner || "no owner"));
+                        this.omegga.whisper(user, white(`${nearest.shape}, ${nearest.oneWay ? red("one-way") : cyan("both ways")}, ${nearest.safe ? green("safe") : cyan("normal")} teleporting`));
                         this.omegga.whisper(user, gray("Distance: ") + white(dist.toString()));
                     }
                 } else if (subcommand == "ban") {
