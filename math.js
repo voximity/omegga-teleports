@@ -66,6 +66,11 @@ class Vector3 {
     dimensionsLessThan(other) {
         return this.x < other.x && this.y < other.y && this.z < other.z;
     }
+
+    in(center, size) {
+        const diff = this.subtract(center).abs();
+        return diff.x < size.x && diff.y < size.y && diff.z < size.z;
+    }
 }
 
 class Ray {

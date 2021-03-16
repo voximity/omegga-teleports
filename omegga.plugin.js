@@ -1,7 +1,8 @@
 const {Vector3, Ray, rayIntersectsPrism} = require("./math.js");
 const {red, yellow, green, cyan, blue, magenta, white, gray} = require("./colors");
 
-const playerSize = new Vector3(12.5, 12.5, 24);
+let playerSize = new Vector3(12.5, 12.5, 24);
+playerSize = playerSize.subtract(new Vector3(1, 1, 3)); // a little extra leeway (mostly for flying)
 
 module.exports = class Teleports {
     constructor(omegga, config, store) {
@@ -102,11 +103,9 @@ module.exports = class Teleports {
 
                                     if (tp.safe && playerFitsInFullZone && intersectionNormalInner != null) {
                                         inZoneToTp = true;
-                                    } else if (tp.safe && !playerFitsInFullZone && intersectionNormal != null) {
+                                    } else if (tp.safe && !playerFitsInFullZone && intersectionNormal != null && !oldPos.in(center, size)) {
                                         inZoneToTp = true;
                                         finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center));
-
-                                        console.log(intersectionNormal.toArray());
 
                                         const nextCenter = new Vector3(...tp.positions[1 - i]);
 
@@ -190,7 +189,7 @@ module.exports = class Teleports {
             const timeout = setTimeout(() => {
                 delete this.playerPromises[user];
                 reject("Timed out: no response from user");
-            }, 60 * 1000); // 60 second timeout period
+            }, 30 * 1000); // 60 second timeout period
 
             const resolve = (message) => {
                 clearTimeout(timeout);
