@@ -162,8 +162,16 @@ module.exports = class Teleports {
         }
     }
 
+    userIsBanned(user) {
+        return this.bans.includes(user);
+    }
+
     userIsAuthed(user) {
         return this.omegga.getPlayer(user).isHost() || this.config.authorized.some((u) => u.name == user);
+    }
+
+    userCanMakeTps(user) {
+        return !this.userIsBanned(user) && (this.userIsAuthed(user) || this.config["allow-all"] || this.omegga.getPlayer(user).getRoles().some((r) => this.config["allowed-roles"].map((r) => r.toLowerCase()).includes(r.toLowerCase())));
     }
 
     async addTp(tp) {
@@ -203,12 +211,32 @@ module.exports = class Teleports {
             this.playerPromises[user] = {resolve};
         });
     }
+
+    async banUser(user) {
+        this.bans.push(user);
+        await this.store.set("bans", this.bans);
+    }
+
+    async unbanUser(user) {
+        this.bans.splice(this.bans.indexOf(user), 1);
+        await this.store.set("bans", this.bans);
+    }
     
     async init() {
         try {
             this.playerData = [];
             this.tps = [];
             this.playerPromises = {};
+
+            // load bans
+            this.bans = []
+            let banslist = await this.store.get("bans");
+            if (banslist == null) {
+                await this.store.set("bans", []);
+                this.bans = [];
+            } else {
+                this.bans = banslist;
+            }
 
             // load from store
             let tpslist = await this.store.get("tps");
@@ -234,31 +262,58 @@ module.exports = class Teleports {
                 if (subcommand == null) {
                     // no subcommand
                     this.omegga.whisper(user, yellow("<b>Teleports Plugin</b>"));
-                    const subcommands = [["list", "Show a list of teleports."], ["ignore", "Toggle ignoring teleports."], ["create", "Create a new teleporter."], ["remove", "Delete an existing teleporter by standing in one of its zones."]];
+                    const subcommands = [
+                        ["list", "Show a list of teleports. <code>list all</> will list all teleports, <code>list X</> will list player X's teleports."],
+                        ["ignore", "Toggle ignoring teleports."],
+                        ["create", "Create a new teleporter."],
+                        ["remove", "Delete an existing teleporter by standing in one of its zones."],
+                        ["find", "Provides the name and owner of the nearest teleporter."],
+                        ["ban", "Ban a user from creating teleports."],
+                        ["unban", "Unban a user from creating teleports."],
+                        ["bans", "Show a list of banned users."]
+                    ];
 
                     subcommands.forEach((sub) => {
                         this.omegga.whisper(user, gray("- ") + `<code>/tps ${sub[0]}</>: ${sub[1]}`);
                     });
                 } else if (subcommand == "list") {
-                    if (!authed) return;
+                    const writeTeleport = (tp) => this.omegga.whisper(user, yellow(`<b>${tp.name}</>`) + `: ${tp.shape}, ${tp.oneWay ? red("one-way") : cyan("both ways")}, ${tp.safe ? green("safe") : cyan("normal")} teleporting`);
+                    const writeTeleportList = (tps) => {
+                        if (tps.length > 0) tps.forEach(writeTeleport);
+                        else this.omegga.whisper(user, white("No teleports available. Create one with <code>/tps create</>."));  
+                    };
+
+                    // by default, show the user's own TPs unless they pass `all` or another name
+                    const joined = args.join(" ");
+                    if (args.length > 0) {
+                        if (!authed) return;
+
+                        if (joined == "all") {
+                            this.omegga.whisper(user, yellow("<b>List of all teleporters</b>"));
+                            writeTeleportList(this.tps);
+                        } else {
+                            this.omegga.whisper(user, yellow("<b>List of teleporters by user " + white(joined) + "</>"));
+                            writeTeleportList(this.tps.filter((tp) => tp.owner == joined));
+                        }
+
+                        return;
+                    }
 
                     // list existing tps
-                    this.omegga.whisper(user, yellow("<b>List of Teleporters</>"));
-
-                    this.tps.forEach((tp) => {
-                        this.omegga.whisper(user, yellow(`<b>${tp.name}</>`) + `: ${tp.shape}, ${tp.oneWay ? red("one-way") : cyan("both ways")}, ${tp.safe ? green("safe") + " teleporting" : cyan("normal") + " teleporting"}`);
-                    });
-
-                    if (this.tps.length == 0)
-                        this.omegga.whisper(user, red("No teleporters have been created. Create one with <code>/tps create</>."));
+                    this.omegga.whisper(user, yellow("<b>List of your teleporters</>"));
+                    writeTeleportList(this.tps.filter((tp) => tp.owner == user));
                 } else if (subcommand == "ignore") {
                     if (!authed) return;
+
                     const pData = this.getOrCreatePlayerData(user);
                     pData.ignore = !pData.ignore;
 
                     this.omegga.whisper(user, `<color="ff0">You will ${pData.ignore ? "no longer" : "now"} interact with teleports. Run the command again to toggle.</>`);
                 } else if (subcommand == "create" || subcommand == "new") {
-                    if (!authed) return;
+                    if (!this.userCanMakeTps(user)) {
+                        this.omegga.whisper(user, red("You do not have permissions to create teleports."));
+                        return;
+                    }
 
                     // create a new tp
                     if (this.playerPromises[user] != null)
@@ -369,7 +424,7 @@ module.exports = class Teleports {
                             }
                         }
 
-                        this.addTp({name, shape, positions: [pointA, pointB], radius, oneWay, safe});
+                        this.addTp({name, shape, positions: [pointA, pointB], radius, oneWay, safe, owner: user});
                         this.omegga.whisper(user, cyan(`The teleporter ${name} has been created!`));
                     } else if (shape == "prism") {
                         this.omegga.whisper(user, yellow("Select and copy some bricks using the selector to define the first teleport zone. When you are done, chat <code>done</>."));
@@ -412,15 +467,13 @@ module.exports = class Teleports {
                         const sizeA = [zoneABounds.maxBound[0] - zoneABounds.center[0], zoneABounds.maxBound[1] - zoneABounds.center[1], zoneABounds.maxBound[2] - zoneABounds.center[2]];
                         const sizeB = [zoneBBounds.maxBound[0] - zoneBBounds.center[0], zoneBBounds.maxBound[1] - zoneBBounds.center[1], zoneBBounds.maxBound[2] - zoneBBounds.center[2]];
 
-                        const tp = {name, shape, positions, sizes: [sizeA, sizeB], oneWay, safe};
+                        const tp = {name, shape, positions, sizes: [sizeA, sizeB], oneWay, safe, owner: user};
                         console.log(JSON.stringify(tp));
                         this.addTp(tp);
                         this.omegga.whisper(user, cyan(`The teleporter ${name} has been created!`));
                     }
                 } else if (subcommand == "delete" || subcommand == "remove") {
                     // remove a tp
-                    if (!authed) return;
-
                     if (args.length > 0) {
                         const passedName = args.join(" ");
 
@@ -433,6 +486,11 @@ module.exports = class Teleports {
                         });
 
                         if (foundTp) {
+                            if (!authed && foundTp.owner != user) {
+                                this.omegga.whisper(user, red("You cannot remove someone else's teleporter."));
+                                return;
+                            }
+
                             this.removeTp(this.tps.indexOf(foundTp));
                             this.omegga.whisper(user, yellow(`Teleporter <b>${foundTp.name}</> was removed.`));
                         } else {
@@ -467,9 +525,49 @@ module.exports = class Teleports {
                     });
 
                     if (tpIn != null) {
+                        if (!authed && tpIn.owner != user) {
+                            this.omegga.whisper(user, red("You cannot remove someone else's teleporter."));
+                            return;
+                        }
+
                         this.removeTp(tpInd);
                         this.omegga.whisper(user, yellow(`Teleporter <b>${tp.name}</> was removed.`));
                     } else this.omegga.whisper(user, red("Stand in a teleporter zone to remove it. You may need to use <code>/tps ignore</> to prevent being teleported."));
+                } else if (subcommand == "find") {
+                    const pos = new Vector3(...(await player.getPosition()));
+                    
+                    const getPosDistance = (tpPos) => {
+                        return pos.subtract(new Vector3(...tpPos)).magnitude();
+                    };
+                    const getTpDistance = (tp) => Math.min(getPosDistance(tp.positions[0]), getPosDistance(tp.positions[1]));
+
+                    const sortedTps = [...this.tps].sort((a, b) => getTpDistance(a) - getTpDistance(b));
+                    if (sortedTps.length == 0) {
+                        this.omegga.whisper(user, red("No teleporters could be found."));
+                    } else {
+                        const nearest = sortedTps[0];
+                        const dist = Math.round(getTpDistance(nearest) * 10) / 100;
+                        this.omegga.whisper(user, "Nearest teleporter: " + yellow(nearest.name) + " by " + cyan(nearest.owner || "no owner"));
+                        this.omegga.whisper(user, gray("Distance: ") + white(dist.toString()));
+                    }
+                } else if (subcommand == "ban") {
+                    if (!authed) return;
+
+                    const name = args.join(" ");
+                    await this.banUser(name);
+                    this.omegga.broadcast(yellow(`User <b>${name}</> has been banned from creating teleports.`));
+                } else if (subcommand == "unban") {
+                    if (!authed) return;
+
+                    const name = args.join(" ");
+                    await this.unbanUser(name);
+                    this.omegga.broadcast(yellow(`User <b>${name}</> has been unbanned from creating teleports.`));
+                } else if (subcommand == "bans") {
+                    if (!authed) return;
+
+                    this.omegga.whisper(user, yellow("<b>List of banned users</b>"));
+                    this.omegga.whisper(user, this.bans.map((b) => gray(b)).join(", "));
+                    this.omegga.whisper(user, white("Ban with <code>/tps ban username</>, unban with <code>/tps unban username</>."));
                 } else {
                     this.omegga.whisper(user, red("Invalid subcommand. Use <code>/tps</code> to view teleporter commands."));
                 }

@@ -9,10 +9,76 @@
             "default": 10
         },
         "authorized": {
-            "description": "A list of users allowed to create/delete/modify teleporters.",
+            "description": "A list of users allowed to create/delete/modify teleporters. This is the root permission for teleporters. They can view/delete anyone's teleporters.",
             "type": "players",
             "default": []
+        },
+        "allow-all": {
+            "description": "Whether or not to allow all users to create and delete their own teleporters. Users can be banned from creating teleporters.",
+            "type": "boolean",
+            "default": true
+        },
+        "allowed-roles": {
+            "description": "A list of roles that are allowed to create and delete their own teleporters.",
+            "type": "list",
+            "itemType": "string",
+            "default": ["Admin", "Moderator"]
         }
     },
-    "commands": []
+    "commands": [
+        {
+            "name": "/tps",
+            "description": "Base teleporters command. Shows a list of all teleporter commands.",
+            "example": "/tps",
+            "args": []
+        },
+        {
+            "name": "/tps list",
+            "description": "Show a list of your teleporters. Optionally specify another person's name or \"all\" to see others'/all teleporters.",
+            "example": "/tps list cake",
+            "args": [{"name": "user-or-all", "description": "The username (or \"all\") to view teleporters of.", "required": false}]
+        },
+        {
+            "name": "/tps create",
+            "description": "Start creating a new teleporter. An interactive chat guide will help you set up your teleporter.",
+            "example": "/tps create",
+            "args": []
+        },
+        {
+            "name": "/tps remove",
+            "description": "Remove a teleporter. Teleporters can be removed if you are standing in one of their zones, or if you pass a teleporter name.",
+            "example": "/tps remove my_teleporter",
+            "args": [{"name": "teleporteer", "description": "Name of the teleporter to remove. Don't specify to base on zone location.", "required": false}]
+        },
+        {
+            "name": "/tps ignore",
+            "description": "Toggle ignoring teleporters. When ignore is on, you will not be teleported when moving inside teleporters.",
+            "example": "/tps ignore",
+            "args": []
+        },
+        {
+            "name": "/tps find",
+            "description": "Get details about the nearest teleporter. Stand near a teleporter and run the command to view its name, who made it, and its distance from you.",
+            "example": "/tps find",
+            "args": []
+        },
+        {
+            "name": "/tps ban",
+            "description": "Ban a user from creating teleports.",
+            "example": "/tps ban Aware",
+            "args": [{"name": "user", "description": "The user to ban.", "required": true}]
+        },
+        {
+            "name": "/tps unban",
+            "description": "Unban a user from creating teleports.",
+            "example": "/tps unban Aware",
+            "args": [{"name": "user", "description": "The user to unban.", "required": true}]
+        },
+        {
+            "name": "/tps bans",
+            "description": "View a list of teleporter bans.",
+            "example": "/tps bans",
+            "args": []
+        }
+    ]
 }
