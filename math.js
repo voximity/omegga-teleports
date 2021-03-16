@@ -97,6 +97,10 @@ module.exports = {
         const t2 = ray.m.multiply(ro.negate().subtract(s.multiply(size)));
         const tn = Math.max(Math.max(t1.x, t1.y), t1.z);
         const tf = Math.min(Math.min(t2.x, t2.y), t2.z);
-        return tn < tf && tf > 0 && tn <= maxRayLength;
+        if (tn < tf && tf > 0 && tn <= maxRayLength) {
+            if (t1.x > t1.y && t1.x > t1.z) return new Vector3(s.x, 0, 0);
+            else if (t1.y > t1.z) return new Vector3(0, s.y, 0);
+            else return new Vector3(0, 0, s.z);
+        }
     }
 };

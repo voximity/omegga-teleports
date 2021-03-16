@@ -87,23 +87,48 @@ module.exports = class Teleports {
                             let size = new Vector3(...tp.sizes[i]);
                             let reducedSize = size.subtract(playerSize);
 
-                            if (newPosDiff.x <= size.x && newPosDiff.y <= size.y && newPosDiff.z <= size.z) {
+                            const safeAndFitsInOrTrue = tp.safe ? playerSize.dimensionsLessThan(size) : true;
+
+                            if (safeAndFitsInOrTrue && newPosDiff.x <= size.x && newPosDiff.y <= size.y && newPosDiff.z <= size.z) {
                                 inZone = true;
                                 if (newPosDiff.dimensionsLessThan(reducedSize) && tp.safe) inZoneToTp = true;
                                 else if (!tp.safe) inZoneToTp = true;
                             } else {
-                                if (rayIntersectsPrism(ray, center, size, diffPos.magnitude())) {
+                                const intersectionNormal = rayIntersectsPrism(ray, center, size, diffPos.magnitude());
+                                if (intersectionNormal != null) {
                                     inZone = true;
-                                    if (tp.safe && playerSize.dimensionsLessThan(size) && rayIntersectsPrism(ray, center, reducedSize, diffPos.magnitude())) {
+                                    const intersectionNormalInner = rayIntersectsPrism(ray, center, reducedSize, diffPos.magnitude());
+                                    const playerFitsInFullZone = playerSize.dimensionsLessThan(size);
+
+                                    if (tp.safe && playerFitsInFullZone && intersectionNormalInner != null) {
                                         inZoneToTp = true;
-                                    } else if (!tp.safe || !playerSize.dimensionsLessThan(size)) {
+                                    } else if (tp.safe && !playerFitsInFullZone && intersectionNormal != null) {
+                                        inZoneToTp = true;
+                                        finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center));
+
+                                        console.log(intersectionNormal.toArray());
+
+                                        const nextCenter = new Vector3(...tp.positions[1 - i]);
+
+                                        // use opposite signs (negative normal is player direction)
+                                        if (intersectionNormal.x ==  1) finalTpPos = new Vector3(Math.min(finalTpPos.x, nextCenter.x - playerSize.x / 2), finalTpPos.y, finalTpPos.z);
+                                        if (intersectionNormal.y ==  1) finalTpPos = new Vector3(finalTpPos.x, Math.min(finalTpPos.y, nextCenter.y - playerSize.y / 2), finalTpPos.z);
+                                        if (intersectionNormal.z ==  1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.min(finalTpPos.z, nextCenter.z - playerSize.z / 2));
+
+                                        if (intersectionNormal.x == -1) finalTpPos = new Vector3(Math.max(finalTpPos.x, nextCenter.x + playerSize.x / 2), finalTpPos.y, finalTpPos.z);
+                                        if (intersectionNormal.y == -1) finalTpPos = new Vector3(finalTpPos.x, Math.max(finalTpPos.y, nextCenter.y + playerSize.y / 2), finalTpPos.z);
+                                        if (intersectionNormal.z == -1) finalTpPos = new Vector3(finalTpPos.x, finalTpPos.y, Math.max(finalTpPos.z, nextCenter.z + playerSize.z / 2));
+
+                                        inZoneToTp = true;
+                                    } else if (!tp.safe) {
                                         inZoneToTp = true;
                                     }
                                 }
                             }
 
-                            if (inZone)
+                            if (inZone && finalTpPos == null) {
                                 finalTpPos = new Vector3(...tp.positions[1 - i]).add(newPos.subtract(center));
+                            }
                         }
 
                         if (inZone) {
