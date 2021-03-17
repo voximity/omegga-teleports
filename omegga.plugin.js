@@ -63,8 +63,8 @@ module.exports = class Teleports {
 
                         const center = new Vector3(...tp.positions[i]);
 
-                        let scaledRelativeSize = new Vector3(tp.sizes[1 - i][0] / tp.sizes[i][0], tp.sizes[1 - i][1] / tp.sizes[i][1], tp.sizes[1 - i][2] / tp.sizes[i][2]);
-                        if (!tp.safe) scaledRelativeSize = new Vector3(1, 1, 1);
+                        let scaledRelativeSize = new Vector3(1, 1, 1);
+                        if (tp.safe && tp.shape == "prism") scaledRelativeSize = new Vector3(tp.sizes[1 - i][0] / tp.sizes[i][0], tp.sizes[1 - i][1] / tp.sizes[i][1], tp.sizes[1 - i][2] / tp.sizes[i][2]);
 
                         let inZone = false;
                         let inZoneToTp = false;
