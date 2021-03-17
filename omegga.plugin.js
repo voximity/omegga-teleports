@@ -765,6 +765,17 @@ module.exports = class Teleports {
                     this.omegga.whisper(user, yellow("<b>List of banned users</b>"));
                     this.omegga.whisper(user, this.bans.map((b) => gray(b)).join(", "));
                     this.omegga.whisper(user, white("Ban with <code>/tps ban username</>, unban with <code>/tps unban username</>."));
+                } else if (subcommand == "shiftall") { // kind of a debug-ish command
+                    if (!authed) return;
+
+                    const by = parseInt(args[0]);
+                    this.tps.forEach(async (tp) => {
+                        tp.positions[0][2] += by;
+                        tp.positions[1][2] += by;
+                        await this.store.set(`tp_${tp.name}`, tp);
+                    });
+
+                    this.omegga.whisper(user, yellow(`Shifted all teleporters by ${by} units.`));
                 } else {
                     this.omegga.whisper(user, red("Invalid subcommand. Use <code>/tps</code> to view teleporter commands."));
                 }
