@@ -70,6 +70,7 @@ module.exports = class Teleports {
                         let inZoneToTp = false;
                         let finalTpPos;
                         if (tp.shape == "sphere") {
+                            const radius = tp.radius;
                             const newToCenterMagnitude = newPos.subtract(center).magnitude();
                             if (newPos.subtract(center).magnitude() <= tp.radius) {
                                 inZone = true;
