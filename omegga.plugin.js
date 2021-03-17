@@ -571,7 +571,8 @@ module.exports = class Teleports {
 
                         const oldName = tp.name;
                         tp.name = newName;
-                        await this.store.set(`tp_${tp.name}`, tp);
+                        await this.store.delete(`tp_${oldName}`);
+                        await this.store.set(`tp_${newName}`, tp);
                         this.omegga.whisper(user, yellow(`The teleporter <b>${oldName}</>'s name has been changed to <b>${newName}</>.`));
                     } else if (property.startsWith("zone ")) {
                         const zoneNum = parseInt(property.substring(5)) - 1;
