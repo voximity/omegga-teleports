@@ -172,6 +172,8 @@ module.exports = class Teleports {
 
                                 this.teleportPlayer(pp.player.name, finalTpPos.toArray());
                                 pData.awaitingTeleport[tp.name] = i;
+                                pData.last = finalTpPos.toArray();
+                                pData.lastTime = Date.now();
                             }
                         }
                     }
