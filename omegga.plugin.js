@@ -279,6 +279,11 @@ module.exports = class Teleports {
             }
             tpslist.forEach(async (tpName) => {
                 const tp = await this.store.get(`tp_${tpName}`);
+                if (tp == null) {
+                    tpslist.splice(tpslist.indexOf(tpName), 1);
+                    await this.store.set(`tps`, tpslist);
+                    return;
+                }
                 this.tps.push(tp);
             });
 
