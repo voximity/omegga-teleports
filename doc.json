@@ -69,6 +69,12 @@
             "args": [{"name": "user", "description": "The user whose teleporters should be clear.", "required": true}]
         },
         {
+            "name": "/tps modify",
+            "description": "Edit an existing teleporter by its name.",
+            "example": "/tps modify",
+            "args": []
+        },
+        {
             "name": "/tps ban",
             "description": "Ban a user from creating teleports.",
             "example": "/tps ban Aware",

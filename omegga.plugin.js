@@ -371,7 +371,7 @@ module.exports = class Teleports {
                     }
 
                     // portal is one way?
-                    this.omegga.whisper(user, yellow("Is this teleporter one-way? One-way teleporter can only be entered from one way, and cannot be exited through the second point. Chat <code>yes</> or <code>no.</>"));
+                    this.omegga.whisper(user, yellow("Is this teleporter one-way? One-way teleporters can only be entered from one way, and cannot be exited through the second point. Chat <code>yes</> or <code>no.</>"));
                     let oneWay;
                     while (true) {
                         const oneWaySpecified = (await this.getPlayerChatMessage(user)).toLowerCase();
@@ -507,6 +507,157 @@ module.exports = class Teleports {
                         console.log(JSON.stringify(tp));
                         this.addTp(tp);
                         this.omegga.whisper(user, cyan(`The teleporter ${name} has been created!`));
+                    }
+                } else if (subcommand == "modify" || subcommand == "edit") {
+                    if (!this.userCanMakeTps(user)) {
+                        this.omegga.whisper(user, red("You do not have permissions to edit teleports."));
+                        return;
+                    }
+
+                    // get a name
+                    this.omegga.whisper(user, yellow("Please enter the name of the teleporter you want to edit."));
+                    let tp;
+                    while (true) {
+                        const nameSpecified = await this.getPlayerChatMessage(user);
+                        const matched = this.tps.filter((tp) => tp.name.toLowerCase() == nameSpecified.toLowerCase());
+                        if (matched.length > 0) {
+                            tp = matched[0];
+                            break;
+                        } else {
+                            this.omegga.whisper(user, red("No teleporter exists by that name. Please choose a valid teleporter name. If needed, locate its name with <code>/tps list</> or <code>/tps find</>."));
+                        }
+                    }
+
+                    if (!authed && tp.owner != user) {
+                        this.omegga.whisper(user, red("You are not authorized to edit that teleporter."));
+                        return;
+                    }
+
+                    // get the property we want to edit
+                    const validProperties = ["name", "zone 1", "zone 2", "one way", "safe"];
+                    if (tp.shape == "sphere") validProperties.push("radius");
+
+                    this.omegga.whisper(user, yellow("Enter the property of the teleporter you want to change."));
+                    this.omegga.whisper(user, white("You must enter one of the following properties:"));
+                    this.omegga.whisper(user, validProperties.map((p) => gray(p)).join(", "));
+                    let property;
+                    while (true) {
+                        const propSpecified = await this.getPlayerChatMessagee(user);
+                        if (validProperties.includes(propSpecified.toLowerCase())) {
+                            property = propSpecified.toLowerCase();
+                            break;
+                        } else {
+                            this.omegga.whisper(user, red("Please enter a valid property of the teleporter. The following properties are:"));
+                            this.omegga.whisper(user, validProperties.map((p) => gray(p)).join(", "));
+                        }
+                    }
+
+                    if (property == "name") {
+                        this.omegga.whisper(user, yellow("Enter the new name for this teleporter."));
+                        let newName;
+                        while (true) {
+                            const nameSpecified = await this.getPlayerChatMessage(user);
+                            if (nameSpecified.toLowerCase() == tp.name.toLowerCase()) {
+                                this.omegga.whisper(user, white("No change was made as the name passed was the same as the original."));
+                                return;
+                            } else if (this.tps.some((t) => t.name.toLowerCase() == nameSpecified.toLowerCase())) {
+                                this.omegga.whisper(user, red("A teleporter by that name already exists. Please choose a different name."));
+                            } else {
+                                newName = nameSpecified;
+                                break;
+                            }
+                        }
+
+                        const oldName = tp.name;
+                        tp.name = newName;
+                        await this.store.set(`tp_${tp.name}`, tp);
+                        this.omegga.whisper(user, yellow(`The teleporter <b>${oldName}</>'s name has been changed to <b>${newName}</>.`));
+                    } else if (property.startsWith("zone ")) {
+                        const zoneNum = parseInt(property.substring(5)) - 1;
+                        if (isNaN(zoneNum)) {
+                            this.omegga.whisper(user, red(`Invalid zone number. Please enter zone 1 or 2. Modification cancelled.`));
+                            return;
+                        }
+
+                        if (tp.shape == "sphere") {
+                            this.omegga.whisper(user, yellow("Move to the point you'd like to change this zone to. When you are ready, chat <code>here</>."));
+                            let newPos;
+                            while (true) {
+                                const confirmation = await this.getPlayerChatMessage(user);
+                                if (confirmation == "done") {
+                                    newPos = await player.getPosition();
+                                    break;
+                                } else {
+                                    this.omegga.whisper(user, red("Please chat <code>done</> when you are in position to replace this zone center."));
+                                }
+                            }
+
+                            tp.positions[zoneNum] = newPos;
+                            await this.store.set(`tp_${tp.name}`, tp);
+                            this.omegga.whisper(user, yellow(`The teleporter's zone ${zoneNum + 1} was changed to your location.`));
+                        } else if (tp.shape == "prism") {
+                            this.omegga.whisper(user, yellow("Select and copy some bricks using the selector to redefine the teleport zone. When you are done, chat <code>done</>."));
+                            let newBounds;
+                            while (true) {
+                                const confirmation = await this.getPlayerChatMessage(user);
+                                const bounds = await player.getTemplateBounds();
+                                if (confirmation == "done") {
+                                    if (bounds == null) {
+                                        this.omegga.whisper(user, red("Please copy a selection of bricks to your clipboard by using the selector and using CTRL+C, then try again by chatting <code>done</>."));
+                                    } else {
+                                        newBounds = bounds;
+                                        break;
+                                    }
+                                } else {
+                                    this.omegga.whisper(user, red("Please chat <code>done</> when you are in position to replace this zone center."));
+                                }
+                            }
+
+                            tp.positions[zoneNum] = newBounds.center;
+                            tp.sizes[zoneNum] = [newBounds.maxBound[0] - newBounds.center[0], newBounds.maxBound[1] - newBounds.center[1], newBounds.maxBound[2] - newBounds.center[2]];
+                            await this.store.set(`tp_${tp.name}`, tp);
+                            this.omegga.whisper(user, yellow(`The teleporter's zone ${zoneNum + 1} was changed to your selection.`));
+                        }
+                    } else if (property == "one way") {
+                        this.omegga.whisper(user, yellow("Would you like to make this teleporter one-way? One-way teleporters can only be entered from one way, and cannot be exited through the second point. Chat <code>yes</> or <code>no.</>"));
+                        let oneWay;
+                        while (true) {
+                            const oneWaySpecified = (await this.getPlayerChatMessage(user)).toLowerCase();
+                            if (oneWaySpecified.startsWith("y")) {
+                                oneWay = true;
+                                break;
+                            } else if (oneWaySpecified.startsWith("n")) {
+                                oneWay = false;
+                                break;
+                            } else {
+                                this.omegga.whisper(user, red("Please choose <code>yes</> or <code>no</>. Make the teleporter one-way?"));
+                            }
+                        }
+
+                        tp.oneWay = oneWay;
+                        await this.store.set(`tp_${tp.name}`, tp);
+                        this.omegga.whisper(user, yellow(`The teleporter was changed to be ${tp.oneWay ? red("one-way") : cyan("both ways")}.`));
+                    } else if (property == "safe") {
+                        this.omegga.whisper(user, yellow("Change this teleporter to use safe teleporting? Respond with <code>yes</> or <code>no</>."));
+                        this.omegga.whisper(user, white("Safe teleporting ensures that the <i>entire</> player is within a teleport zone before teleporting. This prevents getting stuck in floors, walls, etc. after teleporting."));
+                        this.omegga.whisper(user, white("Normal (unsafe) teleporting will teleport the player as soon as the player's center moves into zone."));
+                        let safe;
+                        while (true) {
+                            const safeSpecified = await this.getPlayerChatMessage(user);
+                            if (safeSpecified.startsWith("y")) {
+                                safe = true;
+                                break;
+                            } else if (safeSpecified.startsWith("n")) {
+                                safe = false;
+                                break;
+                            } else {
+                                this.omegga.whisper(user, red("Please choose <code>yes</> or <code>no</>. Make teleporter safe?"));
+                            }
+                        }
+
+                        tp.safe = safe;
+                        await this.store.set(`tp_${tp.name}`, tp);
+                        this.omegga.whisper(user, yellow(`The teleporter was changed to use ${tp.safe ? green("safe") : cyan("normal")} teleporting.`));
                     }
                 } else if (subcommand == "delete" || subcommand == "remove") {
                     // remove a tp
