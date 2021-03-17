@@ -1,5 +1,6 @@
 const {Vector3, Ray, rayIntersectsPrism} = require("./math.js");
 const {red, yellow, green, cyan, blue, magenta, white, gray} = require("./colors");
+const { thomsonCrossSectionDependencies } = require("mathjs");
 
 const ASSUMED_LATENCY = 40;
 
@@ -305,6 +306,7 @@ module.exports = class Teleports {
                         ["create", "Create a new teleporter."],
                         ["remove", "Delete an existing teleporter by standing in one of its zones."],
                         ["find", "Provides the name and owner of the nearest teleporter."],
+                        ["clearfor", "Clear a user's teleporters."],
                         ["ban", "Ban a user from creating teleports."],
                         ["unban", "Unban a user from creating teleports."],
                         ["bans", "Show a list of banned users."]
@@ -525,7 +527,7 @@ module.exports = class Teleports {
                                 return;
                             }
 
-                            this.removeTp(this.tps.indexOf(foundTp));
+                            await this.removeTp(this.tps.indexOf(foundTp));
                             this.omegga.whisper(user, yellow(`Teleporter <b>${foundTp.name}</> was removed.`));
                         } else {
                             this.omegga.whisper(user, red("Unable to find a teleporter by that name."));
@@ -564,7 +566,7 @@ module.exports = class Teleports {
                             return;
                         }
 
-                        this.removeTp(tpInd);
+                        await this.removeTp(tpInd);
                         this.omegga.whisper(user, yellow(`Teleporter <b>${tp.name}</> was removed.`));
                     } else this.omegga.whisper(user, red("Stand in a teleporter zone to remove it. You may need to use <code>/tps ignore</> to prevent being teleported."));
                 } else if (subcommand == "find") {
@@ -584,6 +586,15 @@ module.exports = class Teleports {
                         this.omegga.whisper(user, "Nearest teleporter: " + yellow(nearest.name) + " by " + cyan(nearest.owner || "no owner"));
                         this.omegga.whisper(user, white(`${nearest.shape}, ${nearest.oneWay ? red("one-way") : cyan("both ways")}, ${nearest.safe ? green("safe") : cyan("normal")} teleporting`));
                         this.omegga.whisper(user, gray("Distance: ") + white(dist.toString()));
+                    }
+                } else if (subcommand == "clearfor") {
+                    if (!authed) return;
+
+                    const filtered = this.tps.filter((tp) => tp.owner.toLowerCase() == args.join(" ").toLowerCase());
+                    if (filtered == 0) this.omegga.whisper(user, red("Couldn't find any teleporters belonging to that user."));
+                    else {
+                        await Promise.all(filtered.map((tp) => this.removeTp(tp)));
+                        this.omegga.whisper(user, yellow(`Cleared <b>${args.join(" ")}</>'s ${filtered.length} teleporters.`));
                     }
                 } else if (subcommand == "ban") {
                     if (!authed) return;

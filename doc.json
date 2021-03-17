@@ -63,6 +63,12 @@
             "args": []
         },
         {
+            "name": "/tps clearfor",
+            "description": "Clear a user's teleporters.",
+            "example": "/tps clearfor Kodi022",
+            "args": [{"name": "user", "description": "The user whose teleporters should be clear.", "required": true}]
+        },
+        {
             "name": "/tps ban",
             "description": "Ban a user from creating teleports.",
             "example": "/tps ban Aware",
