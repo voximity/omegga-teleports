@@ -282,7 +282,7 @@ module.exports = class Teleports {
                 await this.store.set("tps", []);
                 tpslist = [];
             }
-            tpslist.forEach(async (tpName) => {
+            await Promise.all(tpslist.map(async (tpName) => {
                 const tp = await this.store.get(`tp_${tpName}`);
                 if (tp == null) {
                     tpslist.splice(tpslist.indexOf(tpName), 1);
@@ -290,7 +290,7 @@ module.exports = class Teleports {
                     return;
                 }
                 this.tps.push(tp);
-            });
+            }));
 
             this.omegga.on("leave", async (user) => {
                 delete this.playerData[user.name];
@@ -752,7 +752,7 @@ module.exports = class Teleports {
                     const filtered = this.tps.filter((tp) => tp.owner.toLowerCase() == args.join(" ").toLowerCase());
                     if (filtered == 0) this.omegga.whisper(user, red("Couldn't find any teleporters belonging to that user."));
                     else {
-                        filtered.forEach((f) => this.removeTp(f));
+                        await Promise.all(filtered.map(async (f) => await this.removeTp(f)));
                         this.omegga.whisper(user, yellow(`Cleared <b>${args.join(" ")}</>'s ${filtered.length} teleporters.`));
                     }
                 } else if (subcommand == "ban") {
