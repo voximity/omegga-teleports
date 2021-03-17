@@ -1,6 +1,5 @@
 const {Vector3, Ray, rayIntersectsPrism} = require("./math.js");
 const {red, yellow, green, cyan, blue, magenta, white, gray} = require("./colors");
-const { thomsonCrossSectionDependencies } = require("mathjs");
 
 const ASSUMED_LATENCY = 40;
 
