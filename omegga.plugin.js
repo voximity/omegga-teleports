@@ -217,13 +217,17 @@ module.exports = class Teleports {
         // todo: add to store
     }
 
-    async removeTp(i) {
+    async removeTpByIndex(i) {
         const tp = this.tps[i];
         const tpslist = await this.store.get("tps");
         tpslist.splice(tpslist.indexOf(tp.name), 1);
         await this.store.delete(`tp_${tp.name}`);
         await this.store.set("tps", tpslist);
         this.tps.splice(i, 1);
+    }
+
+    async removeTp(tp) {
+        await this.removeTpByIndex(this.tps.indexOf(tp));
     }
 
     async getPlayerChatMessage(user) {
@@ -685,7 +689,7 @@ module.exports = class Teleports {
                                 return;
                             }
 
-                            await this.removeTp(this.tps.indexOf(foundTp));
+                            await this.removeTp(foundTp);
                             this.omegga.whisper(user, yellow(`Teleporter <b>${foundTp.name}</> was removed.`));
                         } else {
                             this.omegga.whisper(user, red("Unable to find a teleporter by that name."));
@@ -695,7 +699,6 @@ module.exports = class Teleports {
 
                     const pos = new Vector3(...(await Omegga.getPlayer(user).getPosition()));
                     let tpIn;
-                    let tpInd = 0;
                     this.tps.forEach((tp) => {
                         if (tpIn != null) return;
 
@@ -714,8 +717,6 @@ module.exports = class Teleports {
 
                         if (inZone)
                             tpIn = tp;
-                        else
-                            tpInd++;
                     });
 
                     if (tpIn != null) {
@@ -724,7 +725,7 @@ module.exports = class Teleports {
                             return;
                         }
 
-                        await this.removeTp(tpInd);
+                        await this.removeTp(tpIn);
                         this.omegga.whisper(user, yellow(`Teleporter <b>${tp.name}</> was removed.`));
                     } else this.omegga.whisper(user, red("Stand in a teleporter zone to remove it. You may need to use <code>/tps ignore</> to prevent being teleported."));
                 } else if (subcommand == "find") {
