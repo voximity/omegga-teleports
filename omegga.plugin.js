@@ -304,6 +304,7 @@ module.exports = class Teleports {
                         ["ignore", "Toggle ignoring teleports."],
                         ["create", "Create a new teleporter."],
                         ["remove", "Delete an existing teleporter by standing in one of its zones."],
+                        ["modify", "Edit an existing teleporter."],
                         ["find", "Provides the name and owner of the nearest teleporter."],
                         ["clearfor", "Clear a user's teleporters."],
                         ["ban", "Ban a user from creating teleports."],
@@ -542,7 +543,7 @@ module.exports = class Teleports {
                     this.omegga.whisper(user, validProperties.map((p) => gray(p)).join(", "));
                     let property;
                     while (true) {
-                        const propSpecified = await this.getPlayerChatMessagee(user);
+                        const propSpecified = await this.getPlayerChatMessage(user);
                         if (validProperties.includes(propSpecified.toLowerCase())) {
                             property = propSpecified.toLowerCase();
                             break;
