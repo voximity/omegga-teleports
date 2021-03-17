@@ -330,7 +330,7 @@ module.exports = class Teleports {
                             writeTeleportList(this.tps);
                         } else {
                             this.omegga.whisper(user, yellow("<b>List of teleporters by user " + white(joined) + "</>"));
-                            writeTeleportList(this.tps.filter((tp) => tp.owner == joined));
+                            writeTeleportList(this.tps.filter((tp) => tp.owner.toLowerCase() == joined.toLowerCase()));
                         }
 
                         return;
@@ -745,7 +745,7 @@ module.exports = class Teleports {
                     const filtered = this.tps.filter((tp) => tp.owner.toLowerCase() == args.join(" ").toLowerCase());
                     if (filtered == 0) this.omegga.whisper(user, red("Couldn't find any teleporters belonging to that user."));
                     else {
-                        await Promise.all(filtered.map((tp) => this.removeTp(tp)));
+                        filtered.forEach((f) => this.removeTp(f));
                         this.omegga.whisper(user, yellow(`Cleared <b>${args.join(" ")}</>'s ${filtered.length} teleporters.`));
                     }
                 } else if (subcommand == "ban") {
