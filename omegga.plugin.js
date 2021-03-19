@@ -1,3 +1,4 @@
+const fs = require("fs");
 const {Vector3, Ray, rayIntersectsPrism} = require("./math.js");
 const {red, yellow, green, cyan, blue, magenta, white, gray} = require("./colors");
 
@@ -326,7 +327,7 @@ module.exports = class Teleports {
                         this.omegga.whisper(user, gray("- ") + `<code>/tps ${sub[0]}</>: ${sub[1]}`);
                     });
                 } else if (subcommand == "list") {
-                    const writeTeleport = (tp) => this.omegga.whisper(user, yellow(`<b>${tp.name}</>`) + `: ${tp.shape}, ${tp.oneWay ? red("one-way") : cyan("both ways")}, ${tp.safe ? green("safe") : cyan("normal")} teleporting`);
+                    const writeTeleport = (tp, isAll) => this.omegga.whisper(user, yellow(`<b>${tp.name}</>`) + `${isAll ? ` by ${tp.owner != null ? cyan(tp.owner) : red("no owner")}` : ""}: ${tp.shape}, ${tp.oneWay ? red("one-way") : cyan("both ways")}, ${tp.safe ? green("safe") : cyan("normal")} teleporting`);
                     const writeTeleportList = (tps) => {
                         if (tps.length > 0) tps.forEach(writeTeleport);
                         else this.omegga.whisper(user, white("No teleports available. Create one with <code>/tps create</>."));  
@@ -339,7 +340,7 @@ module.exports = class Teleports {
                             this.omegga.whisper(user, yellow("<b>List of all teleporters</b>"));
                             writeTeleportList(this.tps);
                         } else {
-                            this.omegga.whisper(user, yellow("<b>List of teleporters by user " + white(joined) + "</>"));
+                            this.omegga.whisper(user, yellow("<b>List of teleporters by user " + cyan(joined) + "</>"));
                             writeTeleportList(this.tps.filter((tp) => tp.owner.toLowerCase() == joined.toLowerCase()));
                         }
 
@@ -358,7 +359,7 @@ module.exports = class Teleports {
                     this.omegga.whisper(user, `<color="ff0">You will ${pData.ignore ? "no longer" : "now"} interact with teleports. Run the command again to toggle.</>`);
                 } else if (subcommand == "create" || subcommand == "new") {
                     if (!this.userCanMakeTps(user)) {
-                        this.omegga.whisper(user, red("You do not have permissions to create teleports."));
+                        this.omegga.whisper(user, red("You do not have permission to create teleports."));
                         return;
                     }
 
@@ -521,7 +522,7 @@ module.exports = class Teleports {
                     }
                 } else if (subcommand == "modify" || subcommand == "edit") {
                     if (!this.userCanMakeTps(user)) {
-                        this.omegga.whisper(user, red("You do not have permissions to edit teleports."));
+                        this.omegga.whisper(user, red("You do not have permission to edit teleports."));
                         return;
                     }
 
@@ -784,6 +785,58 @@ module.exports = class Teleports {
                     });
 
                     this.omegga.whisper(user, yellow(`Shifted all teleporters by ${by} units.`));
+                } else if (subcommand == "save") {
+                    if (!authed) return;
+
+                    const saveName = args.join(" ");
+                    const save = {name: saveName, creator: user, at: Date.now(), tps: []};
+
+                    // add all tps
+                    this.tps.forEach((tp) => save.tps.push(tp));
+
+                    // serialize it
+                    const serializedSave = JSON.stringify(save);
+
+                    // write it out
+                    const path = saveName.endsWith(".json") ? saveName : `${saveName}.json`;
+                    await fs.promises.writeFile(path, serializedSave);
+                    this.omegga.whisper(user, yellow(`Saved teleporters to <code>${path}</>. Load at any time with <code>/tps load ${saveName}</>.`));
+                } else if (subcommand == "load") {
+                    if (!authed) return;
+
+                    this.omegga.whisper(user, red("<b>Warning:</> This will wipe all existing teleporters. If needed, save them with <code>/tps save [name]</> first."));
+                    this.omegga.whisper(user, white(`If you would like to proceed, chat ${green("yes")}.`));
+                    const confirmation = await this.getPlayerChatMessage(user);
+                    if (confirmation.toLowerCase() != "yes") {
+                        this.omegga.whisper(user, yellow("Load cancelled, expected <code>yes</>."));
+                        return;
+                    }
+
+                    const saveName = args.join(" ");
+                    const path = saveName.endsWith(".json") ? saveName : `${saveName}.json`;
+                    try {
+                        await fs.promises.access(path, fs.constants.F_OK);
+                    } catch (e) {
+                        this.omegga.whisper(user, red("Unable to find a file by that name. Check your server directory, then try again."));
+                        return;
+                    }
+
+                    const serializedSave = await fs.promises.readFile(path);
+                    const save = JSON.parse(serializedSave.toString());
+
+                    // wipe/reset current db
+                    await this.store.set("tps", save.tps.map((tp) => tp.name));
+                    const dbKeys = await this.store.keys();
+                    await Promise.all(dbKeys.map(async (key) => {
+                        if (key.startsWith("tp_"))
+                            await this.store.delete(key);
+                    }));
+                    await Promise.all(save.tps.map(async (tp) => {
+                        await this.store.set(`tp_${tp.name}`, tp);
+                    }));
+                    this.tps = [...save.tps];
+
+                    this.omegga.whisper(user, white(`Loaded save ${yellow(save.name)}, saved by ${cyan(save.creator)} with ${yellow(`${save.tps.length} teleporters`)}.`));
                 } else {
                     this.omegga.whisper(user, red("Invalid subcommand. Use <code>/tps</code> to view teleporter commands."));
                 }

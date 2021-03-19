@@ -91,6 +91,18 @@
             "description": "View a list of teleporter bans.",
             "example": "/tps bans",
             "args": []
+        },
+        {
+            "name": "/tps save",
+            "description": "Save the current set of teleporters on this server to a JSON file.",
+            "example": "/tps save my_save",
+            "args": [{"name": "save-name", "description": "The name to give the save. If `.json` is not included, it is automatically added.", "required": true}]
+        },
+        {
+            "name": "/tps load",
+            "description": "Load a set of teleporters from a saved JSON file, overwriting current teleporters.",
+            "example": "/tps load my_save",
+            "args": [{"name": "save-name", "description": "The name of the save to load. If `.json` is not included, it is automatically added.", "required": true}]
         }
     ]
 }
