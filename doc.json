@@ -103,6 +103,12 @@
             "description": "Load a set of teleporters from a saved JSON file, overwriting current teleporters.",
             "example": "/tps load my_save",
             "args": [{"name": "save-name", "description": "The name of the save to load. If `.json` is not included, it is automatically added.", "required": true}]
+        },
+        {
+            "name": "/tps clear",
+            "description": "Clear all teleporters. Suggested to run save first.",
+            "example": "/tps clear",
+            "args": []
         }
     ]
 }

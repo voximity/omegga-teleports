@@ -320,7 +320,10 @@ module.exports = class Teleports {
                         ["clearfor", "Clear a user's teleporters."],
                         ["ban", "Ban a user from creating teleports."],
                         ["unban", "Unban a user from creating teleports."],
-                        ["bans", "Show a list of banned users."]
+                        ["bans", "Show a list of banned users."],
+                        ["save", "Save the current teleporters to a file."],
+                        ["load", "Load teleporters from a saved file."],
+                        ["clear", "Clear all teleporters. Suggest using save first."]
                     ];
 
                     subcommands.forEach((sub) => {
@@ -753,7 +756,12 @@ module.exports = class Teleports {
                     const filtered = this.tps.filter((tp) => tp.owner.toLowerCase() == args.join(" ").toLowerCase());
                     if (filtered == 0) this.omegga.whisper(user, red("Couldn't find any teleporters belonging to that user."));
                     else {
-                        await Promise.all(filtered.map(async (f) => await this.removeTp(f)));
+                        await Promise.all(filtered.map(async (f) => {
+                            this.tps.splice(this.tps.indexOf(f), 1);
+                            await this.store.delete(`tp_${f.name}`);
+                        }));
+                        await this.store.set("tps", this.tps.map((tp) => tp.name));
+
                         this.omegga.whisper(user, yellow(`Cleared <b>${args.join(" ")}</>'s ${filtered.length} teleporters.`));
                     }
                 } else if (subcommand == "ban") {
@@ -789,6 +797,11 @@ module.exports = class Teleports {
                     if (!authed) return;
 
                     const saveName = args.join(" ");
+                    if (saveName.trim() == "") {
+                        this.omegga.whisper(user, red(`Please specify a name after <code>/tps save</>, like <code>/tps save mysave</>.`));
+                        return;
+                    }
+
                     const save = {name: saveName, creator: user, at: Date.now(), tps: []};
 
                     // add all tps
@@ -837,6 +850,39 @@ module.exports = class Teleports {
                     this.tps = [...save.tps];
 
                     this.omegga.whisper(user, white(`Loaded save ${yellow(save.name)}, saved by ${cyan(save.creator)} with ${yellow(`${save.tps.length} teleporters`)}.`));
+                } else if (subcommand == "clear") {
+                    if (!authed) return;
+
+                    this.omegga.whisper(user, red("<b>Warning:</> This will wipe all existing teleporters. If needed, save them with <code>/tps save [name]</> first."));
+                    this.omegga.whisper(user, white(`If you would like to proceed, chat ${green("yes")}.`));
+                    const confirmation = await this.getPlayerChatMessage(user);
+                    if (confirmation.toLowerCase() != "yes") {
+                        this.omegga.whisper(user, yellow("Clear cancelled, expected <code>yes</>."));
+                        return;
+                    }
+
+                    const saveName = args.join(" ");
+                    const path = saveName.endsWith(".json") ? saveName : `${saveName}.json`;
+                    try {
+                        await fs.promises.access(path, fs.constants.F_OK);
+                    } catch (e) {
+                        this.omegga.whisper(user, red("Unable to find a file by that name. Check your server directory, then try again."));
+                        return;
+                    }
+
+                    const serializedSave = await fs.promises.readFile(path);
+                    const save = JSON.parse(serializedSave.toString());
+
+                    // wipe/reset current db
+                    await this.store.set("tps", []);
+                    const dbKeys = await this.store.keys();
+                    await Promise.all(dbKeys.map(async (key) => {
+                        if (key.startsWith("tp_"))
+                            await this.store.delete(key);
+                    }));
+                    this.tps = [];
+
+                    this.omegga.whisper(user, white(`Cleared teleporters.`));
                 } else {
                     this.omegga.whisper(user, red("Invalid subcommand. Use <code>/tps</code> to view teleporter commands."));
                 }
