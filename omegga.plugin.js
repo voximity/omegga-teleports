@@ -861,18 +861,6 @@ module.exports = class Teleports {
                         return;
                     }
 
-                    const saveName = args.join(" ");
-                    const path = saveName.endsWith(".json") ? saveName : `${saveName}.json`;
-                    try {
-                        await fs.promises.access(path, fs.constants.F_OK);
-                    } catch (e) {
-                        this.omegga.whisper(user, red("Unable to find a file by that name. Check your server directory, then try again."));
-                        return;
-                    }
-
-                    const serializedSave = await fs.promises.readFile(path);
-                    const save = JSON.parse(serializedSave.toString());
-
                     // wipe/reset current db
                     await this.store.set("tps", []);
                     const dbKeys = await this.store.keys();
