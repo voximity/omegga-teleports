@@ -42,6 +42,10 @@ module.exports = class Teleports {
             const deltaAwaitTime = timeAfterCheck - timeBeforeCheck;
 
             playerPositions.forEach((pp) => {
+                // if they are dead just don't even do anything for them
+                // recent change after my PR thing
+                if (!pp.pos) continue;
+
                 // for each player...
                 const [lastPosition, lastTime] = this.getAndUpdateLastPosition(pp);
                 if (lastPosition == null) return;
