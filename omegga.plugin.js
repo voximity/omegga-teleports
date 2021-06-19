@@ -44,7 +44,7 @@ module.exports = class Teleports {
             playerPositions.forEach((pp) => {
                 // if they are dead just don't even do anything for them
                 // recent change after my PR thing
-                if (!pp.pos) continue;
+                if (!pp.pos) return;
 
                 // for each player...
                 const [lastPosition, lastTime] = this.getAndUpdateLastPosition(pp);
