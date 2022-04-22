@@ -16,7 +16,7 @@ module.exports = class Teleports {
     }
 
     teleportPlayer(player, pos) {
-        this.omegga.writeln(`Chat.Command /TP "${player}" ${pos.join(" ")}`);
+        this.omegga.writeln(`Chat.Command /TP "${player}" ${pos.join(" ")} 1`);
     }
 
     getOrCreatePlayerData(pid) {
